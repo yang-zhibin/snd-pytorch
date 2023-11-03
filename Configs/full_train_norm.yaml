@@ -6,12 +6,12 @@ model: GravNet
 nodes: 1
 
 # Dataset parameters
-data_split: [72000, 36000, 36000]
+data_split: [320000, 36000, 36000]
 feature_set: [vertical, strip_x, strip_y, strip_z, strip_x_end, strip_y_end, strip_z_end, det]
 nb_classes: 4
 
 # Training params
-max_epochs: 20
+max_epochs: 10
 lr: 0.003
 factor: 0.9
 patience: 2
@@ -20,33 +20,33 @@ scheduler: StepLR
 train_batch: 500
 val_batch: 500
 final_dropout: 0.2 # The dropout of the final layer
-feature_dropout: 0. # This is the dropout within the GNN convolutions
-spatial_dropout: 0.
+feature_dropout: 0.0 # This is the dropout within the GNN convolutions
+spatial_dropout: 0.0
 signal_goal: 0.8 # The efficiency goal for the signal neutrinos
 pos_weight:
 
 # MLP params
 spatial_channels: 
-layernorm: True
+layernorm: False # True
 batchnorm: True
 aggregation: mean_sum
-hidden_activation: SiLU
+hidden_activation: ReLU # SiLU
 output_activation: 
 
 # Layer Structure
 hidden: 64
-n_graph_iters: 2
+n_graph_iters: 3
 nb_node_layer: 2
 nb_edge_layer: 2
-concat_all_layers: True
-layer_shape: flat
+concat_all_layers: False # True
+layer_shape: pyramid # flat
 
 # GravNet-specific parameters
 knn: 
 rand_k: 
 
-r: 1.
-max_knn: 12
+r: 0.1
+max_knn: 16
 
 emb_dims: 16
 grav_weight: 3.0

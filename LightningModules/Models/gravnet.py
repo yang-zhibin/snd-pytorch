@@ -1,8 +1,6 @@
-from multiprocessing.sharedctypes import Value
 import torch.nn as nn
 import torch
-from torch_scatter import scatter_add
-from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, knn_graph, radius_graph
+from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 

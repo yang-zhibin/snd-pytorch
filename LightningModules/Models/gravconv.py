@@ -6,7 +6,7 @@ from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_poo
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 
-from ..jet_gnn_base import JetGNNBase
+from ..gnn_base import GNNBase
 from ..utils import make_mlp
 
 

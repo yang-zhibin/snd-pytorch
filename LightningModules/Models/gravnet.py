@@ -6,11 +6,11 @@ from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_poo
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
 
-from ..jet_gnn_base import JetGNNBase
+from ..gnn_base import GNNBase
 from ..utils import make_mlp
 from .gravconv import GravConv
 
-class GravNet(JetGNNBase):
+class GravNet(GNNBase):
     def __init__(self, hparams):
         super().__init__(hparams)
 
@@ -86,7 +86,7 @@ class GravNet(JetGNNBase):
 
             if self.hparams["concat_all_layers"]:
                 all_hidden_features.append(hidden_features)
-            
+
         return self.output_step(hidden_features, batch.batch, all_hidden_features)
 
     def get_layer_structure(self):

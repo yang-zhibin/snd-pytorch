@@ -1,14 +1,14 @@
 # Data params
 input_dir: /data2/steggema/snd/pt/
 artifacts: /home/steggema/snd/artifacts/
-project: GeometricAttention
+project: SNDReco
 model: GravNet
 nodes: 1
 
 # Dataset parameters
-data_split: [10000, 10000, 10000]
+data_split: [72000, 36000, 36000]
 feature_set: [vertical, strip_x, strip_y, strip_z, strip_x_end, strip_y_end, strip_z_end, det]
-nb_classes: 7
+nb_classes: 4
 
 # Training params
 max_epochs: 20
@@ -17,8 +17,8 @@ factor: 0.9
 patience: 2
 warmup: 10
 scheduler: StepLR
-train_batch: 800
-val_batch: 800
+train_batch: 500
+val_batch: 500
 final_dropout: 0.2 # The dropout of the final layer
 feature_dropout: 0. # This is the dropout within the GNN convolutions
 spatial_dropout: 0.
@@ -26,8 +26,7 @@ signal_goal: 0.8 # The efficiency goal for the signal neutrinos
 pos_weight:
 
 # MLP params
-edge_cut: 0.5
-spatial_channels:
+spatial_channels: 
 layernorm: True
 batchnorm: True
 aggregation: mean_sum
@@ -46,11 +45,11 @@ layer_shape: flat
 knn: 
 rand_k: 
 
-r: 0.1
-max_knn: 8
+r: 1.
+max_knn: 12
 
 emb_dims: 16
 grav_weight: 3.0
-norm_hidden: True
-norm_embedding: True
+norm_hidden: False
+norm_embedding: False
 self_loop: False

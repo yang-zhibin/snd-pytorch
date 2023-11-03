@@ -14,7 +14,7 @@ from sklearn.metrics import roc_auc_score, roc_curve
 
 from .utils import load_processed_datasets
 
-class JetGNNBase(LightningModule):
+class GNNBase(LightningModule):
     
     def __init__(self, hparams):
         super().__init__()
@@ -73,14 +73,15 @@ class JetGNNBase(LightningModule):
     def get_metrics(self, targets, output):
         
         prediction = torch.sigmoid(output)
-        tp = (prediction.round() == targets).sum().item()
+        tp = (torch.argmax(prediction, dim=1) == targets).sum().item()
         acc = tp / len(targets)
         
-        try:
-            auc = roc_auc_score(targets.bool().cpu().detach(), prediction.cpu().detach())
-        except Exception:
-            auc = 0
-        fpr, tpr, _ = roc_curve(targets.bool().cpu().detach(), prediction.cpu().detach())
+        auc_prediction = torch.softmax(output, dim=1)
+        if len(torch.unique(targets)) != auc_prediction.shape[1]:
+            auc_prediction = torch.softmax(torch.index_select(auc_prediction, 1, torch.unique(targets)), dim=1)
+        auc = roc_auc_score(targets.cpu().detach(), auc_prediction.cpu().detach(), multi_class='ovr')
+        
+        fpr, tpr, _ = roc_curve((targets.cpu().detach() == 0), prediction.cpu().detach()[:, 0])
         
         # Calculate which threshold gives the best signal goal
         signal_goal_idx = abs(tpr - self.hparams["signal_goal"]).argmin()
@@ -92,7 +93,8 @@ class JetGNNBase(LightningModule):
         return acc, auc, eps_fpr, eps_tpr
     
     def apply_loss_function(self, output, batch):
-        return F.binary_cross_entropy_with_logits(output, batch.y.float()) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
+        # return F.binary_cross_entropy_with_logits(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
+        return F.cross_entropy(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
 
     def training_step(self, batch, batch_idx):
                 
@@ -162,36 +164,10 @@ class JetGNNBase(LightningModule):
         self.shared_end_step(self.test_step_outputs)
         self.test_step_outputs.clear()
 
-        
-    
-    def optimizer_stepREMOVEME(
-        self,
-        epoch,
-        batch_idx,
-        optimizer,
-        optimizer_idx,
-        optimizer_closure=None,
-        on_tpu=False,
-        using_native_amp=False,
-        using_lbfgs=False,
-    ):
-        # warm up lr
-        if (self.hparams["warmup"] is not None) and (
-            self.current_epoch < self.hparams["warmup"]
-        ):
-            lr_scale = min(
-                1.0, float(self.current_epoch + 1) / self.hparams["warmup"]
-            )
-            for pg in optimizer.param_groups:
-                pg["lr"] = lr_scale * self.hparams["lr"]
-
-        # update params
-        optimizer.step(closure=optimizer_closure)
-        optimizer.zero_grad()
 
     def train_dataloader(self):
         if self.trainset is not None:
-            return DataLoader(self.trainset, batch_size=self.hparams["train_batch"], num_workers=1, shuffle=True)
+            return DataLoader(self.trainset, batch_size=self.hparams["train_batch"], shuffle=True, num_workers=1)
         else:
             return None
 

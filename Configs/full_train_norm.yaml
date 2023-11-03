@@ -23,7 +23,7 @@ final_dropout: 0.2 # The dropout of the final layer
 feature_dropout: 0.0 # This is the dropout within the GNN convolutions
 spatial_dropout: 0.0
 signal_goal: 0.8 # The efficiency goal for the signal neutrinos
-pos_weight:
+class_weights: [1.5, 1.5, 1.5, 0.3]
 
 # MLP params
 spatial_channels: 

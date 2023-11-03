@@ -104,7 +104,7 @@ class GNNBase(LightningModule):
     
     def apply_loss_function(self, output, batch):
         # return F.binary_cross_entropy_with_logits(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
-        return F.cross_entropy(output, batch.y) # the version above doesn't work with multiclass and integer class labels
+        return F.cross_entropy(output, batch.y, weight=torch.tensor(self.hparams["class_weights"], device=self.device)) # the version above doesn't work with multiclass and integer class labels
 
     def training_step(self, batch, batch_idx):
                 

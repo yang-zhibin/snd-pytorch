@@ -103,7 +103,6 @@ def build_processed_dataset(events, graph_construction, n_events=None):
         sample.x = sample.strip_x
 
         if len(sample.x) == 0:
-            print('WARNING: Empty sample...')
             empty_rows.append(i)
 
         # Check if any nan values in sample
@@ -114,6 +113,7 @@ def build_processed_dataset(events, graph_construction, n_events=None):
                 sample[key][torch.isnan(sample[key])] = 0.
                 assert not bad, "Nan value found in sample"
     
+    print('WARNING: Found', len(empty_rows), 'empty rows')
     for empty_row in reversed(empty_rows):
         subsample = subsample[:empty_row] +subsample[empty_row+1:]
 

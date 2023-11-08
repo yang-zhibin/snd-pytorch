@@ -94,7 +94,7 @@ def train(config):
     )
 
     summary(model)
-    # print(model)
+    print(model)
     trainer.fit(model, ckpt_path=config["checkpoint"])
 
 

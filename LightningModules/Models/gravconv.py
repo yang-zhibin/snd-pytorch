@@ -1,7 +1,7 @@
 from multiprocessing.sharedctypes import Value
 import torch.nn as nn
 import torch
-from torch_scatter import scatter_add
+from torch_scatter import scatter_add, scatter_max, scatter_min, scatter_std, scatter_mean
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, knn_graph, radius_graph
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
@@ -19,10 +19,15 @@ class GravConv(nn.Module):
         self.input_size = hparams["hidden"] if input_size is None else input_size
         self.output_size = hparams["hidden"] if output_size is None else output_size
         
+        # number of aggregators
+        self.aggs = hparams["aggs"] if "aggs" in hparams else ['add']
+        self.n_agg = len(self.aggs)
+
+        self.agg_func = {'add': scatter_add, 'max': scatter_max, 'std':scatter_std, 'mean':scatter_mean}
 
         self.feature_network = make_mlp(
-                2*(self.input_size + 1),
-                [self.output_size] * hparams["nb_node_layer"],
+                (1+self.n_agg)*(self.input_size + 1),
+                [self.output_size] * hparams["nb_feature_layer"],
                 output_activation=hparams["hidden_activation"],
                 hidden_activation=hparams["hidden_activation"],
                 layer_norm=hparams["layernorm"],
@@ -32,7 +37,7 @@ class GravConv(nn.Module):
 
         self.spatial_network = make_mlp(
                 self.input_size + 1,
-                [self.input_size] * hparams["nb_node_layer"] + [hparams["emb_dims"]],
+                [self.input_size] * hparams["nb_spatial_layer"] + [hparams["emb_dims"]],
                 hidden_activation=hparams["hidden_activation"],
                 layer_norm=hparams["layernorm"],
                 batch_norm=hparams["batchnorm"],
@@ -67,24 +72,34 @@ class GravConv(nn.Module):
         grav_weight = self.grav_weight
         grav_function = - grav_weight * d / self.r**2
         
-        return grav_function, grav_weight
+        return grav_function
 
-    def get_attention_weight(self, spatial_features, hidden_features, edge_index):
+    def get_attention_weight(self, spatial_features, edge_index):
         start, end = edge_index
         d = torch.sum((spatial_features[start] - spatial_features[end])**2, dim=-1) 
-        grav_function, grav_fact = self.get_grav_function(d)
+        grav_function = self.get_grav_function(d)
 
-        return torch.exp(grav_function), grav_fact
+        return torch.exp(grav_function)
 
     def grav_pooling(self, spatial_features, hidden_features):
         edge_index = self.get_neighbors(spatial_features)
         start, end = edge_index
-        d_weight, grav_fact = self.get_attention_weight(spatial_features, hidden_features, edge_index)
+        d_weight = self.get_attention_weight(spatial_features, edge_index)
 
         if "norm_hidden" in self.hparams and self.hparams["norm_hidden"]:
             hidden_features = F.normalize(hidden_features, p=1, dim=-1)
 
-        return scatter_add(hidden_features[start] * d_weight.unsqueeze(1), end, dim=0, dim_size=hidden_features.shape[0]), edge_index, grav_fact
+        agg_hidden = None
+        for agg in self.aggs:
+            the_agg = self.agg_func[agg](hidden_features[start] * d_weight.unsqueeze(1), end, dim=0, dim_size=hidden_features.shape[0])
+            if isinstance(the_agg, tuple): # scatter_max/min return a tuple but we're not intersted in the max/min indices
+                the_agg = the_agg[0]
+            agg_hidden = the_agg if agg_hidden is None else torch.cat([agg_hidden, the_agg], dim=-1)
+
+        if torch.isnan(agg_hidden).any():
+            print('WARNING, Nan value found after scatters')
+    
+        return agg_hidden, edge_index
 
     def forward(self, hidden_features, batch, current_epoch):
         self.current_epoch = current_epoch
@@ -96,9 +111,10 @@ class GravConv(nn.Module):
         if "norm_embedding" in self.hparams and self.hparams["norm_embedding"]:
             spatial_features = F.normalize(spatial_features, p=2, dim=-1)
 
-        aggregated_hidden, edge_index, grav_fact = self.grav_pooling(spatial_features, hidden_features)
+        aggregated_hidden, edge_index = self.grav_pooling(spatial_features, hidden_features)
         concatenated_hidden = torch.cat([aggregated_hidden, hidden_features], dim=-1)
-        return self.feature_network(concatenated_hidden), edge_index, spatial_features, grav_fact
+
+        return self.feature_network(concatenated_hidden), edge_index
 
     def setup_neighborhood_configuration(self):
         self.current_epoch = 0

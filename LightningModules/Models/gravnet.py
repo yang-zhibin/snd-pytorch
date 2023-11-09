@@ -24,7 +24,7 @@ class GravNet(GNNBase):
         self.get_layer_structure()
         self.feature_encoder = make_mlp(
             self.spatial_channels,
-            [self.layer_structure[0][0]] * hparams["nb_node_layer"],
+            [self.layer_structure[0][0]] * hparams["nb_encoder_layer"],
             hidden_activation=hparams["hidden_activation"],
             output_activation=hparams["output_activation"],
             layer_norm=hparams["layernorm"],
@@ -40,7 +40,7 @@ class GravNet(GNNBase):
         self.get_output_structure()
         self.output_network = make_mlp(
             self.aggregation_factor*self.output_size,
-            [self.output_size] * hparams["nb_node_layer"] + [hparams["nb_classes"]],
+            [self.output_size] * hparams["nb_decoder_layer"] + [hparams["nb_classes"]],
             hidden_activation=hparams["hidden_activation"],
             output_activation=None,
             layer_norm=hparams["layernorm"]
@@ -73,14 +73,13 @@ class GravNet(GNNBase):
         # Encode all features
         hidden_features = self.feature_encoder(x)
 
-        # If concating, keep list of all output features
+        # If concatenating, keep list of all output features
         all_hidden_features = []
         for i, grav_conv in enumerate(self.grav_convs):
 
-            hidden_features, spatial_edges, _, grav_fact = checkpoint(grav_conv, hidden_features, batch.batch, self.current_epoch)
+            hidden_features, spatial_edges = checkpoint(grav_conv, hidden_features, batch.batch, self.current_epoch)
 
-            self.log_dict({f"nbhood_sizes/nb_size_{i}": spatial_edges.shape[1] / hidden_features.shape[0],
-                            f"grav_facts/fact_{i}": grav_fact}, on_step=False, on_epoch=True)
+            self.log_dict({f"nbhood_sizes/nb_size_{i}": spatial_edges.shape[1] / hidden_features.shape[0]}, on_step=False, on_epoch=True)
 
             if self.hparams["concat_all_layers"]:
                 all_hidden_features.append(hidden_features)
@@ -101,7 +100,7 @@ class GravNet(GNNBase):
         if "layer_shape" not in self.hparams or self.hparams["layer_shape"]=="flat":
             self.layer_structure = [[self.hparams["hidden"]] * 2] * self.hparams["n_graph_iters"]
         elif self.hparams["layer_shape"] == "pyramid":
-            self.layer_structure = [ [max(self.hparams["hidden"] // 2**i , 2), max(self.hparams["hidden"] // 2**(i+1), 2)] for i in range(self.hparams["n_graph_iters"]) ]
+            self.layer_structure = [ [max(self.hparams["hidden"] // 2**i , 8), max(self.hparams["hidden"] // 2**(i+1), 8)] for i in range(self.hparams["n_graph_iters"]) ]
         elif self.hparams["layer_shape"] == "antipyramid":
             self.layer_structure = [ [max(self.hparams["hidden"] // 2**i , 2) , max(self.hparams["hidden"] // 2**(i-1), 2)] for i in range(self.hparams["n_graph_iters"], 0, -1) ]
 

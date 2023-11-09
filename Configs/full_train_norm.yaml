@@ -34,15 +34,18 @@ output_activation:
 
 # Layer Structure
 hidden: 64
-n_graph_iters: 5
-nb_node_layer: 3
-nb_edge_layer: 3
+n_graph_iters: 3 # 5
+nb_encoder_layer: 3
+nb_decoder_layer: 3
+nb_feature_layer: 3
+nb_spatial_layer: 3
 concat_all_layers: False # True
 layer_shape: pyramid # flat
 
 # GravNet-specific parameters
 knn: 
 rand_k: 
+aggs: [add, max, mean]
 
 r: 1.
 max_knn: 16
@@ -50,5 +53,5 @@ max_knn: 16
 emb_dims: 16
 grav_weight: 3.0
 norm_hidden: True
-norm_embedding: True
+norm_embedding: False
 self_loop: True

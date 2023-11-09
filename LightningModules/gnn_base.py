@@ -92,7 +92,7 @@ class GNNBase(LightningModule):
         try:
             auc = roc_auc_score(targets.cpu().detach(), auc_prediction.cpu().detach(), multi_class='ovr')
         except ValueError:
-            print('Warning, possibly inconsistent shapes', targets.shape, auc_prediction.shape)
+            print('WARNING in gnn_base.py get_metrics, possibly inconsistent shapes', targets.shape, auc_prediction.shape)
             auc = 0.
         
         fpr, tpr, _ = roc_curve((targets.cpu().detach() == 0), prediction.cpu().detach()[:, 0])

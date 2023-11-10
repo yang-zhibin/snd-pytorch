@@ -33,6 +33,7 @@ hidden_activation: ReLU # SiLU
 output_activation: 
 
 # Layer Structure
+n_grav_heads: 5
 hidden: 64
 n_graph_iters: 3 # 5
 nb_encoder_layer: 3

@@ -31,34 +31,39 @@ class GravNet(GNNBase):
             batch_norm=hparams["batchnorm"],
         )
 
+        self.n_grav_heads = hparams['n_grav_heads']
+
         # Construct the GravNet convolution modules 
-        self.grav_convs = nn.ModuleList([
-            GravConv(hparams, input_size, output_size) for input_size, output_size in self.layer_structure
-        ])
+        self.grav_convs = nn.ModuleList()
+        for _ in range(self.n_grav_heads):
+            for input_size, output_size in self.layer_structure:
+                self.grav_convs.append(GravConv(hparams, input_size, output_size))
 
         # Decode hidden features to output features
         self.get_output_structure()
         self.output_network = make_mlp(
-            self.aggregation_factor*self.output_size,
+            self.aggregation_factor*self.n_grav_heads*self.output_size,
             [self.output_size] * hparams["nb_decoder_layer"] + [hparams["nb_classes"]],
             hidden_activation=hparams["hidden_activation"],
             output_activation=None,
             layer_norm=hparams["layernorm"]
         )
 
-    def output_step(self, x, batch, all_x = None):
+    def output_step(self, all_x, batch):
 
-        if all_x is not None and self.hparams["concat_all_layers"]:
-            all_x = torch.cat(all_x, dim=-1)
-        else:
-            all_x = x
+        # all_x = torch.cat(all_x, dim=-1)
 
-        if self.hparams["aggregation"] == "mean_sum":
-            graph_level_inputs = torch.cat([global_add_pool(all_x, batch), global_mean_pool(all_x, batch), global_max_pool(all_x, batch)], dim=1)
-        elif self.hparams["aggregation"] == "sum":
-            graph_level_inputs = global_add_pool(all_x, batch)
-        elif self.hparams["aggregation"] == "mean":
-            graph_level_inputs = global_mean_pool(all_x, batch)
+        graph_level_inputs = []
+
+        for x in all_x:
+            if self.hparams["aggregation"] == "mean_sum":
+                graph_level_inputs.append(torch.cat([global_add_pool(x, batch), global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1))
+            elif self.hparams["aggregation"] == "sum":
+                graph_level_inputs.append(global_add_pool(x, batch))
+            elif self.hparams["aggregation"] == "mean":
+                graph_level_inputs.append(global_mean_pool(x, batch))
+        
+        graph_level_inputs = torch.cat(graph_level_inputs, dim=-1)
 
         # Add dropout
         if "final_dropout" in self.hparams and self.hparams["final_dropout"] > 0.0:
@@ -71,20 +76,27 @@ class GravNet(GNNBase):
         x = self.concat_feature_set(batch)
 
         # Encode all features
-        hidden_features = self.feature_encoder(x)
+        encoded_features = self.feature_encoder(x)
 
         # If concatenating, keep list of all output features
         all_hidden_features = []
-        for i, grav_conv in enumerate(self.grav_convs):
+        i = 0
+        for _ in range(self.n_grav_heads):
+            hidden_features = encoded_features
+            for _ in range(len(self.layer_structure)):
+                grav_conv = self.grav_convs[i]
+                i += 1
+                
+                hidden_features, spatial_edges = checkpoint(grav_conv, hidden_features, batch.batch, self.current_epoch)
 
-            hidden_features, spatial_edges = checkpoint(grav_conv, hidden_features, batch.batch, self.current_epoch)
+                self.log_dict({f"nbhood_sizes/nb_size_{i}": spatial_edges.shape[1] / hidden_features.shape[0]}, on_step=False, on_epoch=True)
 
-            self.log_dict({f"nbhood_sizes/nb_size_{i}": spatial_edges.shape[1] / hidden_features.shape[0]}, on_step=False, on_epoch=True)
-
-            if self.hparams["concat_all_layers"]:
+                if self.hparams["concat_all_layers"]:
+                    all_hidden_features.append(hidden_features)
+            if not self.hparams["concat_all_layers"]:
                 all_hidden_features.append(hidden_features)
 
-        return self.output_step(hidden_features, batch.batch, all_hidden_features)
+        return self.output_step(all_hidden_features, batch.batch)
 
     def get_layer_structure(self):
         """

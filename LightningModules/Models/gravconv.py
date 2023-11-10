@@ -2,9 +2,8 @@ from multiprocessing.sharedctypes import Value
 import torch.nn as nn
 import torch
 from torch_scatter import scatter_add, scatter_max, scatter_min, scatter_std, scatter_mean
-from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, knn_graph, radius_graph
+from torch_geometric.nn import knn_graph, radius_graph
 from torch.nn import functional as F
-from torch.utils.checkpoint import checkpoint
 
 from ..gnn_base import GNNBase
 from ..utils import make_mlp
@@ -14,16 +13,16 @@ class GravConv(nn.Module):
     def __init__(self, hparams, input_size=None, output_size=None):
         super().__init__()
         self.hparams = hparams
-        self.feature_dropout = hparams["feature_dropout"] if "feature_dropout" in hparams else 0.0
-        self.spatial_dropout = hparams["spatial_dropout"] if "spatial_dropout" in hparams else 0.0
+        self.feature_dropout = hparams.get("feature_dropout", 0.0)
+        self.spatial_dropout = hparams.get("spatial_dropout", 0.0)
         self.input_size = hparams["hidden"] if input_size is None else input_size
         self.output_size = hparams["hidden"] if output_size is None else output_size
         
         # number of aggregators
-        self.aggs = hparams["aggs"] if "aggs" in hparams else ['add']
+        self.aggs = hparams.get("aggs", ['add']) # we don't edit the list
         self.n_agg = len(self.aggs)
 
-        self.agg_func = {'add': scatter_add, 'max': scatter_max, 'std':scatter_std, 'mean':scatter_mean}
+        self.agg_func = {'add': scatter_add, 'max': scatter_max, 'min':scatter_min, 'std':scatter_std, 'mean':scatter_mean}
 
         self.feature_network = make_mlp(
                 (1+self.n_agg)*(self.input_size + 1),

@@ -1,14 +1,14 @@
 # Data params
 input_dir: /data2/steggema/snd/pt/
 artifacts: /home/steggema/snd/artifacts/
-project: SNDReco
+project: SNDRecoWithNC
 model: GravNet
 nodes: 1
 
 # Dataset parameters
-data_split: [480000, 36000, 36000]
+data_split: [1440000, 504000, 504000]
 feature_set: [vertical, strip_x, strip_y, strip_z, strip_x_end, strip_y_end, strip_z_end, det]
-nb_classes: 4
+nb_classes: 5
 
 # Training params
 max_epochs: 10
@@ -22,7 +22,7 @@ val_batch: 250
 final_dropout: 0.1 # The dropout of the final layer
 feature_dropout: 0.0 # This is the dropout within the GNN convolutions
 spatial_dropout: 0.0
-class_weights: [2., 1.5, 1., 0.3]
+class_weights: [2., 1.5, 1., 0.3, 1.]
 
 # MLP params
 spatial_channels:
@@ -44,11 +44,11 @@ concat_all_layers: False # True
 layer_shape: pyramid # flat
 
 # GravNet-specific parameters
-knn: 
+knn: 16
 rand_k: 
 aggs: [add, max, mean]
 
-r: 1.
+r: # 1.
 max_knn: 16
 
 emb_dims: 16

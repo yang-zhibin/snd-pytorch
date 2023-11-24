@@ -51,9 +51,8 @@ class GNNBase(LightningModule):
             self.logger.experiment.define_metric("val_loss" , summary="min")
             self.logger.experiment.define_metric("auc" , summary="max")
             self.logger.experiment.define_metric("acc" , summary="max")
-            self.logger.experiment.define_metric("acc0" , summary="max")
-            self.logger.experiment.define_metric("acc1" , summary="max")
-            self.logger.experiment.define_metric("acc3" , summary="max")
+            for i in range(self.hparams['nb_classes']):
+                self.logger.experiment.define_metric(f"acc{i}" , summary="max")
         except Exception:
             warnings.warn("Failed to define figures of merit, due to logger unavailable")
             
@@ -79,7 +78,7 @@ class GNNBase(LightningModule):
         acc = tp / len(targets)
 
         accs = {}
-        for i in [0, 1, 3]: # could make this configurable...
+        for i in range(self.hparams["nb_classes"]):
             targets_i = targets[targets == i]
             if not len(targets_i) == 0:
                 accs[i] =  (torch.argmax(prediction[targets == i], dim=1) == targets_i).sum().item() / len(targets_i)
@@ -94,10 +93,8 @@ class GNNBase(LightningModule):
         except ValueError:
             print('WARNING in gnn_base.py get_metrics, possibly inconsistent shapes', targets.shape, auc_prediction.shape)
             auc = 0.
-        
-        fpr, tpr, _ = roc_curve((targets.cpu().detach() == 0), prediction.cpu().detach()[:, 0])
     
-        return acc, auc, accs[0], accs[1], accs[3]
+        return acc, auc, accs
     
     def apply_loss_function(self, output, batch):
         # return F.binary_cross_entropy_with_logits(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
@@ -109,9 +106,11 @@ class GNNBase(LightningModule):
 
         loss = self.apply_loss_function(output, batch)
         
-        acc, auc, acc0, acc1, acc3 = self.get_metrics(batch.y, output)
+        acc, auc, accs = self.get_metrics(batch.y, output)
+
+        log_dict = {"train_loss": loss, "train_auc": auc, 'acc': acc} | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
         
-        self.log_dict({"train_loss": loss, "train_auc": auc, "train_acc": acc, "train_acc0": acc0, "train_acc1": acc1, "train_acc3": acc3}, on_step=False, on_epoch=True)
+        self.log_dict(log_dict, on_step=False, on_epoch=True)
 
         return loss        
 
@@ -121,7 +120,7 @@ class GNNBase(LightningModule):
 
         loss = self.apply_loss_function(output, batch)
 
-        acc, auc, acc0, acc1, acc3 = self.get_metrics(batch.y, output)
+        acc, auc, accs = self.get_metrics(batch.y, output)
         
         opt = self.optimizers()
         
@@ -134,12 +133,11 @@ class GNNBase(LightningModule):
             "outputs": output,
             "targets": batch.y,
             "acc": acc,
-            "auc": auc,
-            "acc0": acc0,
-            "acc1": acc1,
-            "acc3": acc3,
+            "auc": auc
         }
         
+        ret = ret | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
+
         if test:
             self.test_step_outputs.append(ret)
         else:
@@ -159,9 +157,9 @@ class GNNBase(LightningModule):
         targets = torch.cat([output["targets"] for output in step_outputs])
 
         # Calculate the ROC curve
-        acc, auc,  acc0, acc1, acc3 = self.get_metrics(targets, preds)
+        acc, auc, accs = self.get_metrics(targets, preds)
 
-        self.log_dict({"acc": acc, "auc": auc, "acc0": acc0, "acc1": acc1, "acc3": acc3})
+        self.log_dict({"acc": acc, "auc": auc} | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])})
     
     def on_validation_epoch_end(self):
         self.shared_end_step(self.validation_step_outputs)

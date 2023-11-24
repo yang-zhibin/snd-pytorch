@@ -51,7 +51,7 @@ def make_mlp(
 
 
 def open_processed_files(input_dir, n_events):
-    N_EVENTS_PER_FILE = 36024
+    N_EVENTS_PER_FILE = 72800
 
     files = os.listdir(input_dir)
     num_files = (n_events // N_EVENTS_PER_FILE) + 1 if n_events > 0 else 0

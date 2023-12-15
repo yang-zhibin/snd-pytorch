@@ -44,11 +44,11 @@ concat_all_layers: False # True
 layer_shape: pyramid # flat
 
 # GravNet-specific parameters
-knn: 16
+knn: # 16
 rand_k: 
 aggs: [add, max, mean]
 
-r: # 1.
+r: 1.
 max_knn: 16
 
 emb_dims: 16

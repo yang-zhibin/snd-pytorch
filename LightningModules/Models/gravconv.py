@@ -91,7 +91,7 @@ class GravConv(nn.Module):
         agg_hidden = None
         for agg in self.aggs:
             the_agg = self.agg_func[agg](hidden_features[start] * d_weight.unsqueeze(1), end, dim=0, dim_size=hidden_features.shape[0])
-            if isinstance(the_agg, tuple): # scatter_max/min return a tuple but we're not intersted in the max/min indices
+            if isinstance(the_agg, tuple): # scatter_max/min return a tuple but we're not interested in the max/min indices
                 the_agg = the_agg[0]
             agg_hidden = the_agg if agg_hidden is None else torch.cat([agg_hidden, the_agg], dim=-1)
 

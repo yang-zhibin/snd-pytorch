@@ -43,7 +43,8 @@ class GNNBase(LightningModule):
         if (self.trainset is None) and (self.valset is None) and (self.testset is None):
             self.trainset, self.valset, self.testset = load_processed_datasets(self.hparams["input_dir"], 
                                                         data_split,
-                                                        self.hparams["graph_construction"]
+                                                        self.hparams["graph_construction"],
+                                                        self.hparams["feature_set"][0]
                                                         )
         
         try:
@@ -74,6 +75,18 @@ class GNNBase(LightningModule):
     def get_metrics(self, targets, output):
         
         prediction = torch.sigmoid(output)
+
+        if self.hparams['nb_classes'] == 1:
+            tp = (prediction.round() == targets).sum().item()
+            acc = tp / len(targets)
+
+            try:
+                auc = roc_auc_score(targets.bool().cpu().detach(), prediction.cpu().detach())
+            except Exception:
+                auc = 0
+            accs = {0:acc}
+            return acc, auc, accs
+
         tp = (torch.argmax(prediction, dim=1) == targets).sum().item()
         acc = tp / len(targets)
 
@@ -97,8 +110,10 @@ class GNNBase(LightningModule):
         return acc, auc, accs
     
     def apply_loss_function(self, output, batch):
-        # return F.binary_cross_entropy_with_logits(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
-        return F.cross_entropy(output, batch.y, weight=torch.tensor(self.hparams["class_weights"], device=self.device)) # the version above doesn't work with multiclass and integer class labels
+        if self.hparams["nb_classes"] == 1:
+            return F.binary_cross_entropy_with_logits(output, batch.y) #, pos_weight=torch.tensor(self.hparams["pos_weight"]))
+        else:
+            return F.cross_entropy(output, batch.y, weight=torch.tensor(self.hparams["class_weights"], device=self.device)) # the version above doesn't work with multiclass and integer class labels
 
     def training_step(self, batch, batch_idx):
                 

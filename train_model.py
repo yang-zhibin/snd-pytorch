@@ -18,6 +18,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from LightningModules.Models.gravnet import GravNet
+from LightningModules.Models.gravnetext import GravNetExt
 
 from pytorch_lightning.strategies import DDPStrategy as DDPPlugin
 from pytorch_lightning.overrides.base import _LightningModuleWrapperBase as LightningDistributedModule

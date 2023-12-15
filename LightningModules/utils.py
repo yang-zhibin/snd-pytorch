@@ -63,7 +63,7 @@ def open_processed_files(input_dir, n_events):
     
     return opened_files
 
-def load_processed_datasets(input_dir, data_split, graph_construction):
+def load_processed_datasets(input_dir, data_split, graph_construction, feature_name):
     
     print("Loading torch files")
     print(time.ctime())
@@ -73,21 +73,21 @@ def load_processed_datasets(input_dir, data_split, graph_construction):
 
     print("Building events")
     print(time.ctime())
-    train_dataset = build_processed_dataset(train_events, graph_construction,  data_split[0])
-    val_dataset = build_processed_dataset(val_events, graph_construction, data_split[1])
-    test_dataset = build_processed_dataset(test_events, graph_construction, data_split[2])
+    train_dataset = build_processed_dataset(train_events, graph_construction,  data_split[0], feature_name)
+    val_dataset = build_processed_dataset(val_events, graph_construction, data_split[1], feature_name)
+    test_dataset = build_processed_dataset(test_events, graph_construction, data_split[2], feature_name)
 
 
     return train_dataset, val_dataset, test_dataset
 
-def build_processed_dataset(events, graph_construction, n_events=None):
+def build_processed_dataset(events, graph_construction, n_events=None, feature='x'):
     if n_events == 0:
         return None
     
     subsample = events[:n_events] if n_events is not None else events
 
     try:
-        _ = subsample[0].strip_x
+        _ = getattr(subsample[0], feature)
     except Exception:
         print('WARNING, in the funny exception')
         for i, data in enumerate(subsample):
@@ -95,12 +95,12 @@ def build_processed_dataset(events, graph_construction, n_events=None):
 
     if (graph_construction == "fully_connected"):        
         for ev in subsample:
-            ev.edge_index = get_fully_connected_edges(ev.strip_x)
+            ev.edge_index = get_fully_connected_edges(getattr(ev, feature))
 
     print("Testing sample quality")
     empty_rows = []
     for i, sample in enumerate(tqdm(subsample)):
-        sample.x = sample.strip_x
+        sample.x = getattr(sample, feature)
 
         if len(sample.x) == 0:
             empty_rows.append(i)
@@ -110,12 +110,12 @@ def build_processed_dataset(events, graph_construction, n_events=None):
             bad = torch.isnan(sample[key]).any()
             if bad:
                 print('Nan value found in sample in column', key)
-                sample[key][torch.isnan(sample[key])] = 0.
-                assert not bad, "Nan value found in sample"
-    
-    print('WARNING: Found', len(empty_rows), 'empty rows')
-    for empty_row in reversed(empty_rows):
-        subsample = subsample[:empty_row] +subsample[empty_row+1:]
+                sample[key][torch.isnan(sample[key])] = -999.
+                # assert not bad, "Nan value found in sample"
+    if len(empty_rows) > 0:
+        print('WARNING: Found', len(empty_rows), 'empty rows, removing')
+        for empty_row in reversed(empty_rows):
+            subsample = subsample[:empty_row] +subsample[empty_row+1:]
 
     if len(subsample) < n_events:
         print('WARNING: Subsample loaded with size', len(subsample), 'n events desired', n_events)

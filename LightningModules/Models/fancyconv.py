@@ -26,7 +26,7 @@ class FancyConv(nn.Module):
         self.agg_func = {'add': scatter_add, 'max': scatter_max, 'min':scatter_min, 'std':scatter_std, 'mean':scatter_mean}
 
         self.feature_network = make_mlp(
-                (1+self.n_agg)*(self.input_size + 1),
+                (1+self.n_agg)*(self.input_size) + 1,
                 [self.output_size] * hparams["nb_feature_layer"],
                 output_activation=hparams["hidden_activation"],
                 hidden_activation=hparams["hidden_activation"],
@@ -85,38 +85,24 @@ class FancyConv(nn.Module):
     def grav_pooling(self, spatial_features, fts):
         edge_index = self.get_neighbors(spatial_features)
         start, end = edge_index
-        
-        print('edge_index', edge_index.shape)
-        print('start, end', start.shape, end.shape)
 
         if "norm_hidden" in self.hparams and self.hparams["norm_hidden"]:
             fts = F.normalize(fts, p=1, dim=-1)
 
-        print('fts', fts.shape, fts)
-
         # Subtract the values at the end indices
-
         x = fts[start]
         x1 = x - fts[end]
-        
-        print('x', x.shape, x)
 
         x = torch.stack([x, x1], dim=2).view(-1, 2*x.shape[1]) # interleave the features
-
-        print('x after sub', x.shape, x)
-
-
         x = self.conv_network(x)
-        print('x after conv', x.shape, x)
+
         if self.hparams['use_attention_weight']:
             d_weight = self.get_attention_weight(spatial_features, edge_index)
-            x *= d_weight.unsqueeze(1)
-        print('x after weight', x.shape, x)
+            x = x*d_weight.unsqueeze(1)
 
         agg_hidden = None
         for agg in self.aggs:
             the_agg = self.agg_func[agg](x, end, dim=0, dim_size=fts.shape[0])
-            print('the_agg', the_agg.shape, the_agg)
             if isinstance(the_agg, tuple): # scatter_max/min return a tuple but we're not interested in the max/min indices
                 the_agg = the_agg[0]
             agg_hidden = the_agg if agg_hidden is None else torch.cat([agg_hidden, the_agg], dim=-1)
@@ -124,7 +110,6 @@ class FancyConv(nn.Module):
         if torch.isnan(agg_hidden).any():
             print('WARNING, Nan value found after scatters')
     
-        print('returning agg_hidden', agg_hidden.shape, agg_hidden)
         return agg_hidden, edge_index
 
     def forward(self, hidden_features, batch, current_epoch):

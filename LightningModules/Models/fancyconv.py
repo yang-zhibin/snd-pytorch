@@ -45,8 +45,10 @@ class FancyConv(nn.Module):
         )
 
         self.conv_network = make_mlp(
-            (self.output_size + 1)*2, # Gets the output of the feature network for the node, and the difference vector for the other node
-            [self.output_size]*hparams["n_conv_layer"],
+            # (self.output_size + 1)*2, # Gets the output of the feature network for the node, and the difference vector for the other node
+            # [self.output_size]*hparams["n_conv_layer"],
+            (self.input_size + 1)*2, # Gets the output of the feature network for the node, and the difference vector for the other node
+            [self.input_size]*hparams["n_conv_layer"],
             hidden_activation=hparams["hidden_activation"],
             layer_norm=True,
             batch_norm=False,
@@ -107,8 +109,8 @@ class FancyConv(nn.Module):
                 the_agg = the_agg[0]
             agg_hidden = the_agg if agg_hidden is None else torch.cat([agg_hidden, the_agg], dim=-1)
 
-        if torch.isnan(agg_hidden).any():
-            print('WARNING, Nan value found after scatters')
+        # if torch.isnan(agg_hidden).any():
+        #     print('WARNING, Nan value found after scatters')
     
         return agg_hidden, edge_index
 

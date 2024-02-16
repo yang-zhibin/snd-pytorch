@@ -69,6 +69,7 @@ def train(config):
         logger = WandbLogger(
             project=config["project"],
             save_dir=config["artifacts"],
+            name = config["run_name"]
         )
     else:
         logger = None
@@ -97,6 +98,8 @@ def train(config):
     summary(model)
     print(model)
     trainer.fit(model, ckpt_path=config["checkpoint"])
+    trainer.validate(model=model)
+    trainer.test(model=model)
 
 
 if __name__ == "__main__":

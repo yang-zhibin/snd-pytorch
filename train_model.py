@@ -81,7 +81,7 @@ def train(config):
     else:
         default_root_dir = os.path.join(".", config["root_dir"])
 
-    accelerator = "gpu" if torch.cuda.is_available() else None
+    accelerator = "gpu" if torch.cuda.is_available() else 'auto'
 
     trainer = Trainer(
         accelerator = accelerator,

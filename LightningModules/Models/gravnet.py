@@ -45,7 +45,7 @@ class GravNet(GNNBase):
             self.aggregation_factor*self.n_grav_heads*self.output_size,
             [self.output_size] * hparams["nb_decoder_layer"] + [hparams["nb_classes"]],
             hidden_activation=hparams["hidden_activation"],
-            output_activation=None,
+            output_activation="Softmax",
             layer_norm=hparams["layernorm"]
         )
 

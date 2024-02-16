@@ -1,0 +1,63 @@
+# Data params
+input_dir: /afs/cern.ch/user/z/zhibin/work/steggemann/testData/pt_with_id/
+artifacts: /afs/cern.ch/user/z/zhibin/work/graphNet/snd-pytorch/artifacts/test/
+pred_out_path: /afs/cern.ch/user/z/zhibin/work/graphNet/snd-pytorch/pred_output/
+
+project: SNDRecoWithNC
+run_name: test_run
+
+model: GravNet
+nodes: 1
+
+# Dataset parameters
+data_split: [1000, 200, 100]
+feature_set: [vertical, strip_x, strip_y, strip_z, strip_x_end, strip_y_end, strip_z_end, det]
+nb_classes: 3
+
+# Training params
+max_epochs: 5
+lr: 0.003
+factor: 0.93
+patience: 2
+warmup: 10
+scheduler: StepLR
+train_batch: 250
+val_batch: 250
+test_batch: 1
+final_dropout: 0.1 # The dropout of the final layer
+feature_dropout: 0.0 # This is the dropout within the GNN convolutions
+spatial_dropout: 0.0
+class_weights: [3.25, 1, 1.4] #ve, vm, nc
+
+# MLP params
+spatial_channels:
+layernorm: False # True
+batchnorm: True
+aggregation: mean_sum
+hidden_activation: ReLU # SiLU
+output_activation: 
+
+# Layer Structure
+n_grav_heads: 5
+hidden: 64
+n_graph_iters: 3 # 5
+nb_encoder_layer: 3
+nb_decoder_layer: 3
+nb_feature_layer: 3
+nb_spatial_layer: 3
+concat_all_layers: False # True
+layer_shape: pyramid # flat
+
+# GravNet-specific parameters
+knn: # 16
+rand_k: 
+aggs: [add, max, mean]
+
+r: 1.
+max_knn: 16
+
+emb_dims: 16
+grav_weight: 3.0
+norm_hidden: True
+norm_embedding: False
+self_loop: True

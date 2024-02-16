@@ -14,6 +14,8 @@ from sklearn.metrics import roc_auc_score, roc_curve
 
 from .utils import load_processed_datasets
 
+import pandas as pd
+
 class GNNBase(LightningModule):
     
     def __init__(self, hparams):
@@ -28,18 +30,19 @@ class GNNBase(LightningModule):
         if "graph_construction" not in self.hparams: self.hparams["graph_construction"] = None
         self.trainset, self.valset, self.testset = None, None, None
 
+        self.train_step_outputs = []
         self.validation_step_outputs = []
         self.test_step_outputs = []
 
     def setup(self, stage="fit"):
 
         data_split = self.hparams["data_split"].copy()
-
+        '''
         if stage == "fit":
             data_split[2] = 0 # No test set in training
         elif stage == "test":
             data_split[0], data_split[1] = 0, 0 # No train or val set in testing
-
+        '''
         if (self.trainset is None) and (self.valset is None) and (self.testset is None):
             self.trainset, self.valset, self.testset = load_processed_datasets(self.hparams["input_dir"], 
                                                         data_split,
@@ -123,9 +126,22 @@ class GNNBase(LightningModule):
         
         acc, auc, accs = self.get_metrics(batch.y, output)
 
-        log_dict = {"train_loss": loss, "train_auc": auc, 'acc': acc} | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
+        log_dict = {"train_loss": loss, "train_auc": auc, 'acc': acc} | {f'train_acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
         
         self.log_dict(log_dict, on_step=False, on_epoch=True)
+
+        event_id = batch.event_id
+
+        ret = {
+            "loss": loss,
+            "outputs": output,
+            "targets": batch.y,
+            "acc": acc,
+            "auc": auc,
+            "event_id": batch.event_id
+        }
+
+        self.train_step_outputs.append(ret)
 
         return loss        
 
@@ -140,22 +156,29 @@ class GNNBase(LightningModule):
         opt = self.optimizers()
         
         current_lr = self.optimizers().param_groups[0]["lr"] if opt else 1.
+
+        log_dict = {"train_loss": loss, "train_auc": auc, 'acc': acc, "current_lr": current_lr} | {f'vsl_acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
         
-        self.log_dict({"val_loss": loss, "current_lr": current_lr}, on_step=False, on_epoch=True)
+        self.log_dict(log_dict, on_step=False, on_epoch=True)
+        
+        event_id = batch.event_id
 
         ret = {
             "loss": loss,
             "outputs": output,
             "targets": batch.y,
             "acc": acc,
-            "auc": auc
+            "auc": auc,
+            "event_id": batch.event_id
         }
         
-        ret = ret | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
+        
 
         if test:
+            ret = ret | {f'test_acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
             self.test_step_outputs.append(ret)
         else:
+            ret = ret | {f'val_acc{i}': accs[i] for i in range(self.hparams['nb_classes'])}
             self.validation_step_outputs.append(ret)
 
         return ret
@@ -175,13 +198,34 @@ class GNNBase(LightningModule):
         acc, auc, accs = self.get_metrics(targets, preds)
 
         self.log_dict({"acc": acc, "auc": auc} | {f'acc{i}': accs[i] for i in range(self.hparams['nb_classes'])})
-    
+
+    def output_pred(self, step_outputs, split):
+            preds = torch.cat([output["outputs"] for output in step_outputs])
+            targets = torch.cat([output["targets"] for output in step_outputs])
+            event_ids = torch.cat([output["event_id"] for output in step_outputs])
+
+            preds = pd.DataFrame(preds.cpu().detach().numpy())
+            targets = pd.DataFrame(targets.cpu().detach().numpy())
+            event_ids = pd.DataFrame(event_ids.cpu().detach().numpy())
+
+            out_data = pd.concat([event_ids, targets, preds], axis=1)
+
+            out_path = os.path.join(self.hparams['pred_out_path'], "{}_pred_{}.csv".format(split, self.hparams['run_name']))
+            print(split, "prediction output path:", out_path)
+            out_data.to_csv(out_path, index=False, header=False) 
+
+    def on_train_epoch_end(self):
+        self.output_pred(self.train_step_outputs, "train")
+        self.train_step_outputs.clear()
+
     def on_validation_epoch_end(self):
         self.shared_end_step(self.validation_step_outputs)
+        self.output_pred(self.validation_step_outputs, "val")
         self.validation_step_outputs.clear()
 
     def on_test_epoch_end(self):
         self.shared_end_step(self.test_step_outputs)
+        self.output_pred(self.test_step_outputs, "test")
         self.test_step_outputs.clear()
 
 
@@ -199,7 +243,7 @@ class GNNBase(LightningModule):
 
     def test_dataloader(self):
         if self.testset is not None:
-            return DataLoader(self.testset, batch_size=1, num_workers=1)
+            return DataLoader(self.testset, batch_size=self.hparams["test_batch"], num_workers=1)
         else:
             return None
 

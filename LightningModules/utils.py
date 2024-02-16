@@ -51,11 +51,9 @@ def make_mlp(
 
 
 def open_processed_files(input_dir, n_events):
-    N_EVENTS_PER_FILE = 72800
 
     files = os.listdir(input_dir)
-    num_files = (n_events // N_EVENTS_PER_FILE) + 1 if n_events > 0 else 0
-    paths = [os.path.join(input_dir, file) for file in files][:num_files]
+    paths = [os.path.join(input_dir, file) for file in files][:len(files)]
 
     opened_files = [torch.load(file) for file in tqdm(paths)]
     
